@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Custom YouTube Playlist Widget</title>
+  <style>
+    /* ===== BODY & CONTAINER ===== */
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: transparent !important;
+      color: #4DAB9A;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden; /* Hide main scroll bar */
+    }
+
+    #widget-container {
+      width: 90%;
+      max-width: 900px;
+      border-radius: 10px;
+      background-color: #202020;
+      display: flex;
+      flex-direction: row; /* Horizontal layout */
+      overflow: hidden;
+      resize: both;
+      box-sizing: border-box;
+    }
+
+    /* ===== LEFT PANEL (NOW PLAYING) ===== */
+    #left-panel {
+      width: 35%;
+      min-width: 280px;
+      background: #333;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      padding: 15px;
+      gap: 15px;
+    }
+
+    /* Now playing info */
+    #now-playing {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 15px;
+      color: #fff;
+    }
+
+    #now-playing img {
+      width: 70px;
+      height: 70px;
+      object-fit: cover;
+      border-radius: 8px;
+      flex-shrink: 0;
+      margin: 0;
+    }
+
+    .center-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .now-playing-text {
+      font-size: 0.6rem;
+      font-weight: bold;
+      margin: 0;
+      opacity: 0.70;
+    }
+
+    .song-title {
+      font-size: 1.1rem;
+      margin: 3px 0 0 0;
+    }
+
+    /* ===== CONTROLS ===== */
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .controls button {
+      background: #3A8A73;
+      color: #202020;
+      border: none;
+      border-radius: 5px;
+      padding: 5px 8px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+
+    .controls button:hover {
+      background-color: #347764;
+    }
+
+    #progress-bar {
+      width: 100%;
+      appearance: none;
+      background: #202020;
+      height: 5px;
+      outline: none;
+      border-radius: 5px;
+      margin-top: 5px;
+      margin-bottom: 5px;
+    }
+
+    #progress-bar::-webkit-slider-thumb {
+      appearance: none;
+      width: 10px;
+      height: 10px;
+      background: #4DAB9A;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    #progress-bar::-moz-range-thumb {
+      width: 10px;
+      height: 10px;
+      background: #4DAB9A;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    /* Slider tooltip */
+    #slider-tooltip {
+      position: absolute;
+      background: #4DAB9A;
+      color: #202020;
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-size: 0.8rem;
+      display: none;
+      pointer-events: none;
+      white-space: nowrap;
+      transition: opacity 0.1s;
+    }
+
+    /* ===== RIGHT PANEL (PLAYLIST) ===== */
+    #right-panel {
+      width: 65%;
+      overflow-y: auto;
+      box-sizing: border-box;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    #playlist {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    #playlist::-webkit-scrollbar {
+      display: none;
+    }
+
+    .track {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 10px;
+      border-radius: 5px;
+      transition: background 0.3s, transform 0.3s;
+      position: relative;
+    }
+
+    .track:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: scale(1.03);
+    }
+
+    .track img {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+      z-index: 1;
+    }
+
+    /* Black overlay + play icon on hover */
+    .track:hover::before {
+      content: "";
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 40px;
+      height: 40px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 8px;
+      z-index: 2;
+    }
+
+    .track:hover::after {
+      content: "▷";
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 40px;
+      height: 40px;
+      color: #fff;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+    }
+
+    .track p {
+      margin: 0;
+      font-size: 1rem;
+      color: #fff;
+    }
+
+    .track.active {
+      outline: 2px solid #4DAB9A;
+    }
+
+    #player {
+      width: 0;
+      height: 0;
+      visibility: hidden;
+    }
+
+    /* ===== MODAL ===== */
+    #manage-modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+    }
+    #manage-modal-content {
+      background: #333;
+      color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      min-width: 300px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+    #manage-modal-content h2 {
+      margin-top: 0;
+    }
+    #manage-modal-content input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      border: 1px solid #4DAB9A;
+      background-color: #222;
+      color: #4DAB9A;
+    }
+    #manage-modal-content button {
+      background-color: #4DAB9A;
+      color: #202020;
+      border: none;
+      border-radius: 5px;
+      padding: 6px 10px;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+    #manage-modal-content button:hover {
+      background-color: #3A8A73;
+    }
+    #manage-modal-content ul#playlistsList {
+      list-style: none;
+      padding-left: 0;
+      margin: 0;
+      max-height: 100px;
+      overflow-y: auto;
+      background: #222;
+      border-radius: 4px;
+      border: 1px solid #4DAB9A;
+    }
+    #manage-modal-content ul#playlistsList li {
+      padding: 5px;
+      border-bottom: 1px solid #4DAB9A;
+    }
+    #saveChangesBtn {
+      margin-top: 10px;
+    }
+
+    /* ===== Responsive adjustments ===== */
+    @media (max-width: 700px) {
+      #left-panel {
+        width: 100%;
+        min-width: 0;
+      }
+      #right-panel {
+        display: none;
+      }
+      #widget-container {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="widget-container">
+    <!-- Left panel -->
+    <div id="left-panel">
+      <!-- Now Playing -->
+      <div id="now-playing">
+        <img id="current-song-image" src="" alt="Thumbnail" />
+        <div class="center-info">
+          <p class="now-playing-text">
+            Playing Now • <span id="total-duration">0:00</span>
+          </p>
+          <p class="song-title" id="current-song-title">Song Title</p>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button id="manage-api-button" title="Settings">⚙</button>
+        <button id="shuffle-button" title="Shuffle">⇄</button>
+        <button id="prev-button" title="Previous Song">|≪</button>
+        <button id="play-pause-button" title="Play/Pause">▷</button>
+        <button id="next-button" title="Next Song">≫|</button>
+      </div>
+
+      <input type="range" id="progress-bar" value="0" min="0" max="100" />
+      <div id="slider-tooltip">0:00</div>
+      <!-- Hidden YouTube Player -->
+      <div id="player"></div>
+    </div>
+
+    <!-- Right panel (Playlist) -->
+    <div id="right-panel">
+      <div id="playlist"></div>
+    </div>
+  </div>
+
+  <!-- Modal for managing API key & playlists -->
+  <div id="manage-modal">
+    <div id="manage-modal-content">
+      <h2>Manage Your API & Playlists</h2>
+      <div>
+        <label for="apiKeyInput">API Key:</label>
+        <input type="text" id="apiKeyInput" />
+      </div>
+      <div>
+        <label for="playlistInput">Add Playlist ID:</label>
+        <input type="text" id="playlistInput" />
+        <button id="addPlaylistBtn">Add</button>
+      </div>
+      <ul id="playlistsList"></ul>
+      <button id="saveChangesBtn">Save & Close</button>
+    </div>
+  </div>
+
+  <!-- Load the Google API script -->
+  <script src="https://apis.google.com/js/api.js?onload=initGoogleAPI"></script>
+  <!-- Load the YouTube IFrame API script -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+
+  <script>
+    let player;
+    let currentIndex = 0;
+    let videos = [];
+    let isShuffling = false;
+
+    // Load from localStorage
+    let savedApiKey = localStorage.getItem('apiKey') || '';
+    let playlists = JSON.parse(localStorage.getItem('playlists') || '[]');
+
+    // 1) Initialize Google API (Data API usage if needed)
+    function initGoogleAPI() {
+      // Typically, you'd load the YouTube Data API client using your API key.
+      // For this project, we only do direct fetch calls below, so no extra init here.
+    }
+
+    // 2) YouTube IFrame API ready
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player("player", {
+        events: {
+          onReady: onPlayerReady,
+          onStateChange: onPlayerStateChange,
+        },
+      });
+    }
+
+    function onPlayerReady() {
+      // If there's already a loaded playlist, start playing
+      updateCurrentSong();
+    }
+
+    function onPlayerStateChange(event) {
+      // Auto-skip when video ends
+      if (event.data === YT.PlayerState.ENDED) {
+        playNextSong();
+      }
+    }
+
+    // Toggle play/pause
+    function togglePlayPause() {
+      if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+        player.pauseVideo();
+        document.getElementById("play-pause-button").textContent = "▷";
+      } else {
+        player.playVideo();
+        document.getElementById("play-pause-button").textContent = "||";
+      }
+    }
+
+    function playVideo() {
+      const videoId = videos[currentIndex].id;
+      player.loadVideoById(videoId);
+      document.getElementById("play-pause-button").textContent = "||";
+    }
+
+    function playNextSong() {
+      if (isShuffling) {
+        currentIndex = Math.floor(Math.random() * videos.length);
+      } else {
+        currentIndex = (currentIndex + 1) % videos.length;
+      }
+      updateCurrentSong();
+      playVideo();
+    }
+
+    function playPreviousSong() {
+      currentIndex = (currentIndex - 1 + videos.length) % videos.length;
+      updateCurrentSong();
+      playVideo();
+    }
+
+    // Shuffle toggle
+    document.getElementById("shuffle-button").addEventListener("click", () => {
+      isShuffling = !isShuffling;
+      document.getElementById("shuffle-button").classList.toggle("active", isShuffling);
+    });
+
+    // 3) Fetch videos from the YouTube Data API
+    async function fetchPlaylistVideos(apiKey, playlistId) {
+      const url = `https://www.googleapis.com/youtube/v3/playlistItems`
+                + `?part=snippet&maxResults=50&playlistId=${playlistId}&key=${apiKey}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data.items) return [];
+
+      return data.items.map(item => {
+        const snippet = item.snippet;
+        return {
+          id: snippet.resourceId.videoId,
+          title: snippet.title,
+          thumbnail: snippet.thumbnails?.default?.url || ""
+        };
+      });
+    }
+
+    // 4) Load all saved playlists from localStorage, fetch their videos, and combine
+    async function loadPlaylistsFromStorage() {
+      savedApiKey = localStorage.getItem('apiKey') || '';
+      playlists = JSON.parse(localStorage.getItem('playlists') || '[]');
+
+      let allVideos = [];
+      for (let pid of playlists) {
+        const fetched = await fetchPlaylistVideos(savedApiKey, pid);
+        allVideos.push(...fetched);
+      }
+
+      if (allVideos.length > 0) {
+        loadPlaylist(allVideos);
+      } else {
+        console.warn("No videos found or invalid playlist IDs.");
+      }
+    }
+
+    // 5) Render the playlist once we have the videos
+    function loadPlaylist(videoList) {
+      videos = videoList;
+      renderPlaylist();
+      currentIndex = 0;
+      updateCurrentSong();
+    }
+
+    function renderPlaylist() {
+      const playlistDiv = document.getElementById("playlist");
+      playlistDiv.innerHTML = "";
+
+      videos.forEach((video, index) => {
+        const trackDiv = document.createElement("div");
+        trackDiv.className = "track";
+        trackDiv.innerHTML = `
+          <img src="${video.thumbnail}" alt="${video.title}">
+          <p>${video.title}</p>
+        `;
+
+        if (index === currentIndex) {
+          trackDiv.classList.add("active");
+        }
+
+        trackDiv.addEventListener("click", () => {
+          currentIndex = index;
+          updateCurrentSong();
+          playVideo();
+        });
+
+        playlistDiv.appendChild(trackDiv);
+      });
+    }
+
+    function updateCurrentSong() {
+      if (!videos[currentIndex]) return;
+      const currentSong = videos[currentIndex];
+      document.getElementById("current-song-image").src = currentSong.thumbnail;
+      document.getElementById("current-song-title").textContent = currentSong.title;
+
+      // Update active track highlight
+      const tracks = document.querySelectorAll(".track");
+      tracks.forEach((track, index) => {
+        track.classList.toggle("active", index === currentIndex);
+      });
+    }
+
+    // Modal logic
+    const manageModal = document.getElementById("manage-modal");
+    const manageApiButton = document.getElementById("manage-api-button");
+    const saveChangesBtn = document.getElementById("saveChangesBtn");
+    const apiKeyInput = document.getElementById("apiKeyInput");
+    const playlistInput = document.getElementById("playlistInput");
+    const playlistsList = document.getElementById("playlistsList");
+    const addPlaylistBtn = document.getElementById("addPlaylistBtn");
+
+    // Show modal
+    manageApiButton.addEventListener("click", () => {
+      apiKeyInput.value = localStorage.getItem('apiKey') || '';
+      renderPlaylistsList();
+      manageModal.style.display = "flex";
+    });
+
+    // Save & close modal -> re-fetch videos
+    saveChangesBtn.addEventListener("click", async () => {
+      localStorage.setItem('apiKey', apiKeyInput.value);
+      localStorage.setItem('playlists', JSON.stringify(playlists));
+      manageModal.style.display = "none";
+
+      // Fetch the newly saved playlists and load them
+      await loadPlaylistsFromStorage();
+    });
+
+    // Add playlist button
+    addPlaylistBtn.addEventListener("click", () => {
+      const newId = playlistInput.value.trim();
+      if (newId) {
+        playlists.push(newId);
+        playlistInput.value = "";
+        renderPlaylistsList();
+      }
+    });
+
+    function renderPlaylistsList() {
+      playlistsList.innerHTML = "";
+      playlists.forEach(pid => {
+        const li = document.createElement("li");
+        li.textContent = pid;
+        playlistsList.appendChild(li);
+      });
+    }
+
+    window.addEventListener("click", (e) => {
+      if (e.target === manageModal) {
+        manageModal.style.display = "none";
+      }
+    });
+
+    // Basic button event listeners
+    document.getElementById("prev-button").addEventListener("click", playPreviousSong);
+    document.getElementById("play-pause-button").addEventListener("click", togglePlayPause);
+    document.getElementById("next-button").addEventListener("click", playNextSong);
+
+    // Optionally, load existing playlists on page load:
+    loadPlaylistsFromStorage();
+  </script>
+</body>
+</html>
